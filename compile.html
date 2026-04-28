@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Compilar targets AR</title>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; }
+    #drop-zone { border: 2px dashed #ccc; padding: 40px; text-align: center; cursor: pointer; border-radius: 8px; }
+    #drop-zone.drag-over { border-color: #4CAF50; background: #f0fff0; }
+    button { margin-top: 20px; padding: 12px 24px; background: #4CAF50; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    #log { margin-top: 20px; font-family: monospace; font-size: 13px; background: #f5f5f5; padding: 12px; border-radius: 6px; white-space: pre-wrap; min-height: 40px; }
+  </style>
+</head>
+<body>
+  <h2>🎯 Compilar imágenes objetivo</h2>
+  <p>Selecciona las fotos en orden. La imagen 0 → video-0.mp4, imagen 1 → video-1.mp4, etc.</p>
+
+  <div id="drop-zone">
+    📁 Haz clic aquí para seleccionar imágenes
+    <input type="file" id="file-input" multiple accept="image/*" style="display:block; margin: 10px auto; cursor:pointer;">
+  </div>
+
+  <div id="file-list"></div>
+  <button id="compile-btn" disabled>Compilar targets.mind</button>
+  <div id="log">Esperando imágenes...</div>
+
+  <script type="module">
+    import { Compiler } from "https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.esm.js";
+
+    const fileInput = document.getElementById('file-input');
+    const compileBtn = document.getElementById('compile-btn');
+    const log = document.getElementById('log');
+    const fileList = document.getElementById('file-list');
+    let selectedFiles = [];
+
+    fileInput.addEventListener('change', () => {
+      selectedFiles = [...fileInput.files].filter(f => f.type.startsWith('image/'));
+      fileList.innerHTML = '<h3>Imágenes seleccionadas:</h3>' +
+        selectedFiles.map((f, i) => `<div>${i}: ${f.name}</div>`).join('');
+      compileBtn.disabled = selectedFiles.length === 0;
+      log.textContent = `${selectedFiles.length} imágenes listas para compilar.`;
+    });
+
+    compileBtn.addEventListener('click', async () => {
+      compileBtn.disabled = true;
+      log.textContent = 'Cargando imágenes...\n';
+
+      const images = await Promise.all(selectedFiles.map(f => loadImage(f)));
+      log.textContent += `${images.length} imágenes cargadas. Compilando... (puede tardar un minuto)\n`;
+
+      const compiler = new Compiler();
+      await compiler.compileImageTargets(images, (progress) => {
+        log.textContent = `Compilando: ${(progress * 100).toFixed(0)}%`;
+      });
+
+      log.textContent += '\nExportando...';
+      const buffer = await compiler.exportData();
+      const blob = new Blob([buffer]);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'targets.mind';
+      a.click();
+
+      log.textContent += '\n✅ ¡Listo! Mueve targets.mind a la carpeta assets/';
+      compileBtn.disabled = false;
+    });
+
+    function loadImage(file) {
+      return new Promise(resolve => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.src = URL.createObjectURL(file);
+      });
+    }
+  </script>
+</body>
+</html>
